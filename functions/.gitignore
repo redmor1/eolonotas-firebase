@@ -1,0 +1,3 @@
+node_modules/
+*.local
+src/config/serviceAccountKey.json
