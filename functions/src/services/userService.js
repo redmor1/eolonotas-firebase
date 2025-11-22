@@ -108,8 +108,11 @@ const userService = {
   },
 
   // servicio para trigger
-  createProfileOnAuth: async function (authUser) {
-    // TODO: hacer
+  initializeNewUser: async function (uid, email, displayName, photoURL) {
+    // crear perfil
+    await userRepository.create(uid, { email, displayName, photoURL });
+
+    console.log(`Usuario ${uid} inicializado`);
   },
 };
 

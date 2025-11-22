@@ -9,6 +9,7 @@
 
 const { setGlobalOptions } = require("firebase-functions");
 const userApp = require("./modules/user");
+const initializeNewUser = require("./src/triggers/userTriggers");
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -27,4 +28,6 @@ setGlobalOptions({ maxInstances: 10 });
 
 // exports.deck = deckApp;
 // exports.card = cardApp;
+
+exports.initializeNewUser = initializeNewUser;
 exports.user = userApp;
