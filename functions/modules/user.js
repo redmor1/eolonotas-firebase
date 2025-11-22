@@ -30,7 +30,6 @@ app.post("/sync", async (req, res, next) => {
 
 app.get("/profile", async (req, res, next) => {
   try {
-    console.log(req.user);
     const userId = req.user.uid;
     const profile = await userService.getProfile(userId);
     res.status(200).json(profile);

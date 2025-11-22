@@ -17,6 +17,10 @@ const userRepository = {
     const userRef = db.collection("users").doc(userId);
     const dataWithTimestamp = {
       ...userData,
+      preferences: userData.preferences || {
+        theme: "dark",
+        notifications: false,
+      },
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     };

@@ -9,6 +9,8 @@
 
 const { setGlobalOptions } = require("firebase-functions");
 const userApp = require("./modules/user");
+const deckApp = require("./modules/deck");
+const cardApp = require("./modules/card");
 const initializeNewUser = require("./src/triggers/userTriggers");
 
 // For cost control, you can set the maximum number of containers that can be
@@ -26,8 +28,7 @@ setGlobalOptions({ maxInstances: 10 });
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
 
-// exports.deck = deckApp;
-// exports.card = cardApp;
-
 exports.initializeNewUser = initializeNewUser;
 exports.user = userApp;
+exports.deck = deckApp;
+exports.card = cardApp;
