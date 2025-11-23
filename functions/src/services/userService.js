@@ -5,7 +5,7 @@ const syncUserSchema = Joi.object().keys({
   localUpdatedAt: Joi.date().timestamp().required(),
   localData: Joi.object()
     .keys({
-      username: Joi.string().optional(),
+      displayName: Joi.string().min(3).max(50).optional(),
       preferences: Joi.object()
         .keys({
           theme: Joi.string().valid("light", "dark"),
@@ -17,7 +17,7 @@ const syncUserSchema = Joi.object().keys({
 });
 
 const updateProfileSchema = Joi.object().keys({
-  username: Joi.string().min(3).max(30).optional(),
+  displayName: Joi.string().min(3).max(50).optional(),
   preferences: Joi.object()
     .keys({
       theme: Joi.string().valid("light", "dark").optional(),

@@ -50,6 +50,7 @@ app.put("/profile", async (req, res, next) => {
 });
 
 // TODO: conseguir perfil publico de otro usuario
+// eslint-disable-next-line no-unused-vars
 app.get("/public-profile/:id", async (req, res) => {});
 
 app.use(errorHandler);

@@ -11,7 +11,7 @@
     "emulate": "firebase emulators:start"
   },
   "engines": {
-    "node": "24"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {
