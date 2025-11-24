@@ -6,7 +6,7 @@
  * @param {number} easinessFactor - factor de facilidad actual
  * @param {number} repetitions - numero de repeticiones consecutivas correctas
  * @param {number} intervalDays - intervalo actual en días
- * @returns {Object} datos actualizados de repaso
+ * @returns {Object} datos actualizados de repaso (sin fechas, solo valores numéricos)
  */
 function calculateSM2(quality, easinessFactor, repetitions, intervalDays) {
   let newEasinessFactor = easinessFactor;
@@ -38,20 +38,10 @@ function calculateSM2(quality, easinessFactor, repetitions, intervalDays) {
     }
   }
 
-  // calcular proxima fecha de repaso
-  const nextReviewDate = new Date();
-  nextReviewDate.setDate(nextReviewDate.getDate() + newIntervalDays);
-  nextReviewDate.setHours(0, 0, 0, 0);
-
-  const lastReviewedDate = new Date();
-  lastReviewedDate.setHours(0, 0, 0, 0);
-
   return {
     easinessFactor: newEasinessFactor,
     repetitions: newRepetitions,
     intervalDays: newIntervalDays,
-    nextReviewDate: nextReviewDate,
-    lastReviewedDate: lastReviewedDate,
   };
 }
 

@@ -48,7 +48,7 @@ const updateCardSchema = Joi.object({
 }).unknown(true);
 
 const reviewCardSchema = Joi.object({
-  quality: Joi.number().integer().min(0).max(5).required(),
+  quality: Joi.number().min(0).max(5).required(),
 });
 
 const cardService = {
