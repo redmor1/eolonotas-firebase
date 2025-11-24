@@ -33,8 +33,8 @@ const createCardFillSchema = Joi.object({
 
 const createCardImageSchema = Joi.object({
   title: Joi.string().required(),
-  originalImageUri: Joi.string().required(),
-  modifiedImageUri: Joi.string().required(),
+  originalImageUri: Joi.string(),
+  modifiedImageUri: Joi.string(),
 }).unknown(true);
 
 const updateCardSchema = Joi.object({

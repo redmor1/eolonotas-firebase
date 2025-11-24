@@ -1,12 +1,22 @@
 rules_version = '2';
 
-// Craft rules based on data in your Firestore database
-// allow write: if firestore.get(
-//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if false;
+    
+    // reglas para perfiles de usuario
+    match /users/{userId}/profile.jpg {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // reglas para imagenes de decks (dentro de la carpeta del usuario)
+    match /users/{userId}/decks/{deckId}/cards/{cardId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        firestore.get(/databases/(default)/documents/users/$(userId)/decks/$(deckId)).data.isPublic == true
+      );
     }
   }
 }

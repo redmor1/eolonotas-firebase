@@ -1,23 +1,10 @@
 const Joi = require("joi");
 const userRepository = require("../repositories/userRepository");
-
-const syncUserSchema = Joi.object().keys({
-  localUpdatedAt: Joi.date().timestamp().required(),
-  localData: Joi.object()
-    .keys({
-      displayName: Joi.string().min(3).max(50).optional(),
-      preferences: Joi.object()
-        .keys({
-          theme: Joi.string().valid("light", "dark"),
-          notifications: Joi.boolean(),
-        })
-        .optional(),
-    })
-    .required(),
-});
+const { auth } = require("../config/firebase");
 
 const updateProfileSchema = Joi.object().keys({
   displayName: Joi.string().min(3).max(50).optional(),
+  photoURL: Joi.string().uri().optional(),
   preferences: Joi.object()
     .keys({
       theme: Joi.string().valid("light", "dark").optional(),
@@ -27,65 +14,6 @@ const updateProfileSchema = Joi.object().keys({
 });
 
 const userService = {
-  syncUser: async function syncUser(userId, localUpdatedAt, localData) {
-    const { error } = syncUserSchema.validate({
-      localUpdatedAt,
-      localData,
-    });
-
-    if (error) {
-      const e = new Error();
-      e.status = 400;
-      e.message = error.details[0].message;
-      throw e;
-    }
-
-    // obtenr usuario de firestore
-    const remoteUser = await userRepository.getById(userId);
-
-    // si no existe, se crea con datos locales
-    if (!remoteUser) {
-      const newUserData = await userRepository.create(userId, {
-        ...localData,
-        updatedAt: localUpdatedAt,
-      });
-
-      return {
-        status: "synced_to_cloud",
-        data: newUserData,
-      };
-    }
-
-    const remoteUpdatedAt = remoteUser.updatedAt || 0;
-
-    // comparar timestamps
-    if (localUpdatedAt > remoteUpdatedAt) {
-      // local es mas reciente -> actualizar firebase
-      await userRepository.update(userId, {
-        ...localData,
-        updatedAt: localUpdatedAt,
-      });
-
-      return {
-        status: "synced_to_cloud",
-        timestamp: localUpdatedAt,
-      };
-    } else if (remoteUpdatedAt > localUpdatedAt) {
-      // firebase es mas reciente -> enviar datos remotos
-      return {
-        status: "synced_to_local",
-        data: remoteUser,
-        timestamp: remoteUpdatedAt,
-      };
-    }
-
-    // estan sincronizados
-    return {
-      status: "up_to_date",
-      timestamp: remoteUpdatedAt,
-    };
-  },
-
   getProfile: async function getProfile(userId) {
     const user = await userRepository.getById(userId);
 
@@ -100,6 +28,17 @@ const userService = {
       e.status = 400;
       e.message = error.details[0].message;
       throw e;
+    }
+    // actualiza el displayname y photourl en servicio de auth
+    if (updateData.displayName || updateData.photoURL) {
+      try {
+        await auth.updateUser(userId, {
+          displayName: updateData.displayName,
+          photoURL: updateData.photoURL,
+        });
+      } catch (err) {
+        console.error("Error updating auth user:", err);
+      }
     }
 
     const updatedUser = await userRepository.update(userId, updateData, true);

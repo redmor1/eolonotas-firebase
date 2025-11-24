@@ -12,22 +12,6 @@ app.use(express.json());
 app.use(logging);
 app.use(validateFirebaseIdToken);
 
-// sincronizar usuario
-app.post("/sync", async (req, res, next) => {
-  try {
-    const userId = req.user.uid;
-    const { localUpdatedAt, localData } = req.body;
-    const result = await userService.syncUser(
-      userId,
-      localUpdatedAt,
-      localData
-    );
-    res.status(200).json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
 app.get("/profile", async (req, res, next) => {
   try {
     const userId = req.user.uid;
