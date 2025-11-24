@@ -8,12 +8,14 @@ const createDeckSchema = Joi.object().keys({
   description: Joi.string().max(500).optional().allow(""),
   userId: Joi.string().required(),
   isPublic: Joi.boolean().optional().default(false),
+  isFavorite: Joi.boolean().optional().default(false),
 });
 
 const updateDeckSchema = Joi.object().keys({
   name: Joi.string().min(1).max(100).optional(),
   description: Joi.string().max(500).optional().allow(""),
   isPublic: Joi.boolean().optional(),
+  isFavorite: Joi.boolean().optional(),
 });
 
 const deckService = {
@@ -23,7 +25,7 @@ const deckService = {
   },
 
   createDeck: async function createDeck(deckData) {
-    const { error } = createDeckSchema.validate(deckData);
+    const { value, error } = createDeckSchema.validate(deckData);
 
     if (error) {
       const e = new Error();
@@ -32,7 +34,7 @@ const deckService = {
       throw e;
     }
 
-    const userId = deckData.userId;
+    const userId = value.userId;
 
     // generar un nuevo ID para el mazo
     const deckRef = db
@@ -41,7 +43,7 @@ const deckService = {
       .collection("decks")
       .doc();
 
-    const newDeck = await deckRepository.create(userId, deckRef.id, deckData);
+    const newDeck = await deckRepository.create(userId, deckRef.id, value);
 
     return newDeck;
   },

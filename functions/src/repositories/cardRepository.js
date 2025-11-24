@@ -1,4 +1,4 @@
-const { db } = require("../config/firebase");
+const { db, storage } = require("../config/firebase");
 const { FieldValue } = require("firebase-admin/firestore");
 const admin = require("firebase-admin");
 
@@ -86,6 +86,15 @@ const cardRepository = {
       .doc(deckId)
       .collection("cards")
       .doc(cardId);
+
+    // eliminar carpeta de imagenes asociada a la card
+    try {
+      const bucket = storage.bucket();
+      const folderPath = `users/${userId}/decks/${deckId}/cards/${cardId}/`;
+      await bucket.deleteFiles({ prefix: folderPath });
+    } catch (error) {
+      console.error("Error deleting card images:", error);
+    }
 
     await cardRef.delete();
     return { success: true, message: "Card deleted successfully" };
