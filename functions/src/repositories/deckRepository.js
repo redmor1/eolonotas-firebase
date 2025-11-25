@@ -30,12 +30,12 @@ const deckRepository = {
     return { id: doc.id, ...doc.data() };
   },
 
-  create: async function (userId, deckId, deckData) {
+  create: async function (userId, deckData) {
     const deckRef = db
       .collection("users")
       .doc(userId)
       .collection("decks")
-      .doc(deckId);
+      .doc();
 
     const dataWithTimestamp = {
       ...deckData,
@@ -93,6 +93,19 @@ const deckRepository = {
 
     const data = doc.data();
     return data && data.updatedAt ? data.updatedAt : 0;
+  },
+
+  updateCardCount: async function (userId, deckId, incrementValue) {
+    const deckRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("decks")
+      .doc(deckId);
+
+    await deckRef.update({
+      cardCount: FieldValue.increment(incrementValue),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
   },
 };
 

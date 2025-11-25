@@ -1,7 +1,7 @@
 const Joi = require("joi");
 const deckRepository = require("../repositories/deckRepository");
 const cardService = require("./cardService");
-const { db } = require("../config/firebase");
+
 
 const createDeckSchema = Joi.object().keys({
   name: Joi.string().min(1).max(100).required(),
@@ -9,6 +9,7 @@ const createDeckSchema = Joi.object().keys({
   userId: Joi.string().required(),
   isPublic: Joi.boolean().optional().default(false),
   isFavorite: Joi.boolean().optional().default(false),
+  cardCount: Joi.number().optional().default(0),
 });
 
 const updateDeckSchema = Joi.object().keys({
@@ -36,14 +37,7 @@ const deckService = {
 
     const userId = value.userId;
 
-    // generar un nuevo ID para el mazo
-    const deckRef = db
-      .collection("users")
-      .doc(userId)
-      .collection("decks")
-      .doc();
-
-    const newDeck = await deckRepository.create(userId, deckRef.id, value);
+    const newDeck = await deckRepository.create(userId, value);
 
     return newDeck;
   },
@@ -87,6 +81,10 @@ const deckService = {
     const result = await deckRepository.delete(userId, deckId);
 
     return result;
+  },
+
+  incrementCardCount: async function (userId, deckId, amount) {
+    await deckRepository.updateCardCount(userId, deckId, amount);
   },
 };
 

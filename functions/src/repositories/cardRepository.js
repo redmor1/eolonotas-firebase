@@ -37,14 +37,14 @@ const cardRepository = {
     return { id: doc.id, ...doc.data() };
   },
 
-  create: async function (userId, deckId, cardId, cardData) {
+  create: async function (userId, deckId, cardData) {
     const cardRef = db
       .collection("users")
       .doc(userId)
       .collection("decks")
       .doc(deckId)
       .collection("cards")
-      .doc(cardId);
+      .doc();
 
     const dataWithTimestamp = {
       ...cardData,

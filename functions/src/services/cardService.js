@@ -1,7 +1,7 @@
 const Joi = require("joi");
 const cardRepository = require("../repositories/cardRepository");
 const deckRepository = require("../repositories/deckRepository");
-const { db } = require("../config/firebase");
+
 const { calculateSM2 } = require("../utils/sm2Algorithm");
 
 const baseCardSchema = Joi.object()
@@ -99,18 +99,9 @@ const cardService = {
     // verifica que el deck le pertenece al usuario
     await deckRepository.getById(userId, deckId);
 
-    const cardRef = db
-      .collection("users")
-      .doc(userId)
-      .collection("decks")
-      .doc(deckId)
-      .collection("cards")
-      .doc();
-
     const newCard = await cardRepository.create(
       userId,
       deckId,
-      cardRef.id,
       baseValue
     );
 
