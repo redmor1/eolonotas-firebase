@@ -70,3 +70,5 @@ node_modules/
 
 
 frontend
+
+/functions/src/config/serviceAccountKey.json

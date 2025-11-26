@@ -1,34 +1,24 @@
 /**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
+ * Import function triggers from their respective submodules
+ * usando Firebase Functions v2
  */
 
-const { setGlobalOptions } = require("firebase-functions");
+const { setGlobalOptions } = require("firebase-functions/v2"); // v2 API
 const userApp = require("./modules/user");
 const deckApp = require("./modules/deck");
 const cardApp = require("./modules/card");
+const communityApp = require("./modules/community");
 const initializeNewUser = require("./src/triggers/userTriggers");
 const { onCardCreated, onCardDeleted } = require("./src/triggers/cardTriggers");
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
+// Configuración global de máximo de instancias (v2)
 setGlobalOptions({ maxInstances: 10 });
 
+// Exportar funciones de forma clara
 exports.initializeNewUser = initializeNewUser;
 exports.user = userApp;
 exports.deck = deckApp;
 exports.card = cardApp;
+exports.community = communityApp;
 exports.onCardCreated = onCardCreated;
 exports.onCardDeleted = onCardDeleted;
