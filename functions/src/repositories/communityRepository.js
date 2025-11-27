@@ -1,8 +1,7 @@
-const { db, admin, storage } = require("../config/firebase");
+const { db, storage } = require("../config/firebase");
 const { FieldValue } = require("firebase-admin/firestore");
 const cardRepository = require("./cardRepository");
 const deckRepository = require("./deckRepository");
-const { getAllDecks } = require("../services/deckService");
 
 const communityRepository = {
   checkUserStatus: async (userId, communityId, role) => {
@@ -12,13 +11,13 @@ const communityRepository = {
       .collection("communities")
       .doc(communityId);
     const doc = await ref.get();
-    if (!doc.exists) throw new Error("No se encontro la comunidad");
+    if (!doc.exists) return false;
     const user = doc.data();
     const result = user.status === role ? true : false;
     return result;
   },
 
-  getUserData: async userId => {
+  getUserData: async (userId, roleOrCommunityId) => {
     const userRef = db.collection("users").doc(userId);
     const doc = await userRef.get();
 
@@ -26,13 +25,54 @@ const communityRepository = {
       throw new Error("No se encontró el usuario");
     }
     const user = doc.data();
-    //console.log(user);
+
+    let role = null;
+    if (roleOrCommunityId) {
+      if (["owner", "member", "admin"].includes(roleOrCommunityId)) {
+        role = roleOrCommunityId;
+      } else {
+        try {
+          const statusDoc = await db
+            .collection("users")
+            .doc(userId)
+            .collection("communities")
+            .doc(roleOrCommunityId)
+            .get();
+          if (statusDoc.exists) {
+            role = statusDoc.data().status;
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+        }
+      }
+    }
+
     const userDto = {
       id: doc.id,
       displayName: user.displayName,
-      photoUrl: user.photoUrl || "",
+      photoURL: user.photoURL || "",
+      role: role,
     };
     return userDto;
+  },
+
+  getUserByEmail: async email => {
+    const usersRef = db.collection("users");
+    const snapshot = await usersRef.where("email", "==", email).get();
+
+    if (snapshot.empty) {
+      throw new Error("No se encontró usuario con ese email");
+    }
+
+    const doc = snapshot.docs[0];
+    const user = doc.data();
+
+    return {
+      id: doc.id,
+      displayName: user.displayName,
+      photoURL: user.photoURL || "",
+      email: user.email,
+    };
   },
 
   create: async (communityData, ownerId) => {
@@ -63,17 +103,29 @@ const communityRepository = {
     return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   getAllMine: async userId => {
-    let result = [];
-    const communityRef = db.collection("communities");
-    const ownedSnap = await communityRef.where("ownerId", "==", userId).get();
-    const memberSnap = await communityRef
-      .where("members", "array-contains", userId)
-      .get();
+    const userCommunitiesRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("communities");
+    
+    const snapshot = await userCommunitiesRef.get();
+    
+    if (snapshot.empty) {
+      return [];
+    }
 
-    result = [
-      ...memberSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-      ...ownedSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-    ];
+    const communityIds = snapshot.docs.map(doc => doc.id);
+    
+    const communityRefs = communityIds.map(id => 
+      db.collection("communities").doc(id).get()
+    );
+
+    const communityDocs = await Promise.all(communityRefs);
+
+    const result = communityDocs
+      .filter(doc => doc.exists)
+      .map(doc => ({ id: doc.id, ...doc.data() }));
+
     return result;
   },
   getById: async communityId => {
@@ -97,18 +149,48 @@ const communityRepository = {
     const communityRef = db.collection("communities").doc(communityId);
     const doc = await communityRef.get();
     if (!doc.exists) throw new Error("No se encontró la comunidad");
-    if (!doc.data().ownerId !== userId)
+    if (doc.data().ownerId !== userId)
       throw new Error("No tenés permisos para eliminar esta comunidad");
 
-    await communityRef.delete();
+    const bucket = storage.bucket();
 
-    // Esto va para elmimnar la referencia
-    const userRef = db
-      .collection("users")
-      .doc(userId)
-      .collection("communities")
-      .doc(communityId);
-    await userRef.delete();
+    // 1. Eliminar todos los mazos y sus imágenes
+    const decksSnapshot = await communityRef.collection("decks").get();
+    const deleteDecksPromises = decksSnapshot.docs.map(async deckDoc => {
+      const cardsSnapshot = await deckDoc.ref.collection("cards").get();
+      const deleteCardsPromises = cardsSnapshot.docs.map(async cardDoc => {
+        const cardData = cardDoc.data();
+        if (cardData.imagePath) {
+          const folderPath = `communities/${communityId}/decks/${deckDoc.id}/cards/${cardDoc.id}/`;
+          try {
+            await bucket.deleteFiles({ prefix: folderPath });
+          } catch (error) {
+            console.error("Error eliminando imágenes de card:", error);
+          }
+        }
+        await cardDoc.ref.delete();
+      });
+      await Promise.all(deleteCardsPromises);
+      await deckDoc.ref.delete();
+    });
+    await Promise.all(deleteDecksPromises);
+
+
+
+    // 3. Eliminar referencia en los usuarios miembros
+    const members = doc.data().members || [];
+    const removeMemberRefPromises = members.map(member => {
+      return db
+        .collection("users")
+        .doc(member.id)
+        .collection("communities")
+        .doc(communityId)
+        .delete();
+    });
+    await Promise.all(removeMemberRefPromises);
+
+    // 4. Eliminar la comunidad
+    await communityRef.delete();
 
     return { success: true };
   },
@@ -125,10 +207,30 @@ const communityRepository = {
     const communityRef = db.collection("communities").doc(communityId);
     await communityRef.update({
       members: FieldValue.arrayUnion(userData),
+      membersCount: FieldValue.increment(1),
     });
     const result = await communityRef.get();
 
     // Agregando la comunidad al usario con el estatus
+
+    await userRef.set({ status: "member" });
+
+    return result.data();
+  },
+
+  addMember: async (communityId, userData) => {
+    const userRef = db
+      .collection("users")
+      .doc(userData.id)
+      .collection("communities")
+      .doc(communityId);
+
+    const communityRef = db.collection("communities").doc(communityId);
+    await communityRef.update({
+      members: FieldValue.arrayUnion(userData),
+      membersCount: FieldValue.increment(1),
+    });
+    const result = await communityRef.get();
 
     await userRef.set({ status: "member" });
 
@@ -158,7 +260,10 @@ const communityRepository = {
 
       const updatedMembers = members.filter(m => m.id !== userId);
 
-      await communityRef.update({ members: updatedMembers });
+      await communityRef.update({
+        members: updatedMembers,
+        membersCount: FieldValue.increment(-1),
+      });
 
       return { success: true, removed: userId };
     } catch (error) {
@@ -240,6 +345,7 @@ const communityRepository = {
 
     const userDeckData = {
       ...deck,
+      cardCount: 0,
       originalCommunityId: communityId,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -320,16 +426,19 @@ const communityRepository = {
 
   // Para los ratings
 
-  rateCommunity: async (communityId, userId, rating) => {
+  rateDeck: async (communityId, deckId, userId, rating) => {
     const ratingRef = db
       .collection("communities")
       .doc(communityId)
+      .collection("decks")
+      .doc(deckId)
       .collection("ratings")
       .doc(userId);
 
     // Guardar o actualizar el voto del usuario
     await ratingRef.set(
       {
+        userId,
         rating,
         ratedAt: FieldValue.serverTimestamp(),
       },
@@ -340,6 +449,8 @@ const communityRepository = {
     const ratingsSnapshot = await db
       .collection("communities")
       .doc(communityId)
+      .collection("decks")
+      .doc(deckId)
       .collection("ratings")
       .get();
 
@@ -347,9 +458,14 @@ const communityRepository = {
     const averageRating =
       ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
 
-    // Actualizar los campos en la comunidad
-    const communityRef = db.collection("communities").doc(communityId);
-    await communityRef.update({
+    // Actualizar los campos en el deck
+    const deckRef = db
+      .collection("communities")
+      .doc(communityId)
+      .collection("decks")
+      .doc(deckId);
+
+    await deckRef.update({
       averageRating,
       ratingCount: ratings.length,
     });
@@ -357,16 +473,44 @@ const communityRepository = {
     return { averageRating, ratingCount: ratings.length };
   },
 
-  getCommunityRating: async communityId => {
-    const communityRef = db.collection("communities").doc(communityId);
-    const doc = await communityRef.get();
-    if (!doc.exists) throw new Error("Comunidad no encontrada");
+  getDeckRating: async (communityId, deckId) => {
+    const deckRef = db
+      .collection("communities")
+      .doc(communityId)
+      .collection("decks")
+      .doc(deckId);
+
+    const doc = await deckRef.get();
+    if (!doc.exists) throw new Error("Deck no encontrado");
 
     const data = doc.data();
     return {
       averageRating: data.averageRating || 0,
       ratingCount: data.ratingCount || 0,
     };
+  },
+
+  updateMemberRole: async (communityId, userId, newRole) => {
+    const userRef = db
+      .collection("users")
+      .doc(userId)
+      .collection("communities")
+      .doc(communityId);
+
+    const doc = await userRef.get();
+    if (!doc.exists) throw new Error("El usuario no es parte de la comunidad");
+
+    await userRef.update({ status: newRole });
+
+    return { success: true, userId, newRole };
+  },
+
+  getAllDecks: async communityId => {
+    const communityRef = db.collection("communities").doc(communityId);
+    const decksRef = communityRef.collection("decks");
+    const snap = await decksRef.get();
+
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
 };
 

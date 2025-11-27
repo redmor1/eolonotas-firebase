@@ -125,6 +125,52 @@ app.post(
   }
 );
 
+app.post(
+  "/:cId/invite",
+  roleMiddleware,
+  validateRole("admin", "owner"),
+  async (req, res, next) => {
+    try {
+      const communityId = req.params.cId;
+      const email = req.body.email;
+      const requestUserId = req.user.uid;
+
+      const result = await communityService.inviteMember(
+        communityId,
+        email,
+        requestUserId
+      );
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+app.put(
+  "/:cId/members/:userId",
+  roleMiddleware,
+  validateRole("owner"),
+  async (req, res, next) => {
+    try {
+      const communityId = req.params.cId;
+      const targetUserId = req.params.userId;
+      const requestUserId = req.user.uid;
+      const newRole = req.body.role; // "admin" o "member"
+
+      const result = await communityService.updateMemberRole(
+        communityId,
+        targetUserId,
+        newRole,
+        requestUserId
+      );
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 app.post("/:cId/decks/:dId", async (req, res, next) => {
   try {
     const communityId = req.params.cId;
@@ -174,13 +220,15 @@ app.delete("/:cId/decks/:dId", async (req, res, next) => {
   }
 });
 
-app.post("/:cId/ratings", async (req, res, next) => {
+app.post("/:cId/decks/:dId/ratings", async (req, res, next) => {
   try {
     const communityId = req.params.cId;
+    const deckId = req.params.dId;
     const userId = req.user.uid;
     const raiting = req.body.rate;
-    const result = await communityService.rateCommunity(
+    const result = await communityService.rateDeck(
       communityId,
+      deckId,
       userId,
       raiting
     );
@@ -190,10 +238,11 @@ app.post("/:cId/ratings", async (req, res, next) => {
   }
 });
 
-app.get("/:cId/ratings", async (req, res, next) => {
+app.get("/:cId/decks/:dId/ratings", async (req, res, next) => {
   try {
     const communityId = req.params.cId;
-    const result = await communityService.getCommunityRating(communityId);
+    const deckId = req.params.dId;
+    const result = await communityService.getDeckRating(communityId, deckId);
     res.status(200).json(result);
   } catch (error) {
     next(error);

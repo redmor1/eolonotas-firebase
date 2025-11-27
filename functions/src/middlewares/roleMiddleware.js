@@ -7,7 +7,7 @@ const roleMiddleware = async (req, res, next) => {
     const communityId = req.params.id || req.params.cId;
 
     // El ID del usuario SIEMPRE viene del token decodificado
-    const userId = req.user?.uid;
+    const userId = req.user && req.user.uid;
 
     console.log("roleMiddleware → userId:", userId);
     console.log("roleMiddleware → communityId:", communityId);
@@ -18,7 +18,12 @@ const roleMiddleware = async (req, res, next) => {
     }
 
     // Obtener el rol desde Firestore
-    req.user.role = await getUserStatus(userId, communityId);
+    try {
+      req.user.role = await getUserStatus(userId, communityId);
+    } catch (error) {
+      console.warn("User no es parte de la comunidad o error fetcheando el status:", error.message);
+      req.user.role = null;
+    }
 
     next();
   } catch (error) {

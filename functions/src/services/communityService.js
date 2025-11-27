@@ -14,7 +14,7 @@ const createSchema = Joi.object().keys({
 
 const communityIdSchema = Joi.string().required().min(20).max(20);
 
-const ratingSchema = Joi.number().integer().min(1).max(5).required();
+// const ratingSchema = Joi.number().integer().min(1).max(5).required();
 
 const updateUserStatuSchema = Joi.string()
   .valid("admin", "owner", "member")
@@ -43,26 +43,21 @@ const communityService = {
       throw e;
     }
 
-    const ownerData = await communityRepository.getUserData(ownerId);
-    console.log(ownerData);
+    const ownerData = await communityRepository.getUserData(ownerId, "owner");
     const communityDto = {
       ...value,
       members: [ownerData],
       membersCount: 1,
-      ratings: [],
-      averageRating: 0,
     };
     const communityId = await communityRepository.create(communityDto, ownerId);
+    return communityId;
   },
   getWithFilter: async (userId, filter) => {
     let result = [];
     if (filter === "mine") {
-      result = await communityRepository.getMine(userId);
+      result = await communityRepository.getAllMine(userId);
     } else {
-      result =
-        filter === "public"
-          ? await communityRepository.getPublic()
-          : await communityRepository.getAllMine(userId);
+      result = await communityRepository.getPublic()
     }
     return result;
   },
@@ -94,7 +89,7 @@ const communityService = {
       e.message = commIdError.details[0].message;
       throw e;
     }
-    console.log(commIdValue);
+
 
     const isOwner = communityRepository.checkUserStatus(
       userId,
@@ -106,7 +101,7 @@ const communityService = {
       throw new Error("Solo el owner puede actualizar la comunidad");
     }
 
-    const result = communityRepository.update(commIdValue, dataValue);
+    const result = await communityRepository.update(commIdValue, dataValue);
     return result;
   },
 
@@ -152,9 +147,7 @@ const communityService = {
       e.message = commIdError.details[0].message;
       throw e;
     }
-    const userData = await communityRepository.getUserData(userIdValue);
-    console.log("Llegue hasta userData");
-    console.log(userData);
+    const userData = await communityRepository.getUserData(userIdValue, "member");
     const result = await communityRepository.addMember(commIdValue, userData);
     return result;
   },
@@ -187,16 +180,86 @@ const communityService = {
       commIdValue,
       "admin"
     );
+    let result;
     if (!isMember && !isAdmin) {
-      const userData = await communityRepository.getUserData(userIdValue);
-      const result = await communityRepository.join(commIdValue, userData);
+      const userData = await communityRepository.getUserData(userIdValue, "member");
+      result = await communityRepository.join(commIdValue, userData);
     } else {
-      const result = { mensaje: "El usuario ya existe en la comunidad" };
+      result = { mensaje: "El usuario ya existe en la comunidad" };
     }
     return result;
   },
-  getAllMembers: async communityId => {
+
+  inviteMember: async (communityId, email, requestUserId) => {
+    const emailSchema = Joi.string().email().required();
+    const { error: emailError, value: emailValue } = emailSchema.validate(email);
+    if (emailError) {
+      const e = new Error();
+      e.status = 400;
+      e.message = emailError.details[0].message;
+      throw e;
+    }
+
     const { error: commIdError, value: commIdValue } =
+      communityIdSchema.validate(communityId);
+    if (commIdError) {
+      const e = new Error();
+      e.status = 400;
+      e.message = commIdError.details[0].message;
+      throw e;
+    }
+
+    // Verificar permisos (owner o admin)
+    const isOwner = await communityRepository.checkUserStatus(
+      requestUserId,
+      commIdValue,
+      "owner"
+    );
+    const isAdmin = await communityRepository.checkUserStatus(
+      requestUserId,
+      commIdValue,
+      "admin"
+    );
+
+    if (!isOwner && !isAdmin) {
+      const e = new Error("No tienes permisos para invitar miembros");
+      e.status = 403;
+      throw e;
+    }
+
+    // Buscar usuario por email
+    const user = await communityRepository.getUserByEmail(emailValue);
+
+    // Verificar si ya es miembro
+    const isMember = await communityRepository.checkUserStatus(
+      user.id,
+      commIdValue,
+      "member"
+    );
+    const isUserAdmin = await communityRepository.checkUserStatus(
+      user.id,
+      commIdValue,
+      "admin"
+    );
+    const isUserOwner = await communityRepository.checkUserStatus(
+      user.id,
+      commIdValue,
+      "owner"
+    );
+
+    if (isMember || isUserAdmin || isUserOwner) {
+      const e = new Error("El usuario ya es miembro de la comunidad");
+      e.status = 400;
+      throw e;
+    }
+
+    // Agregar usuario
+    const userData = { ...user, role: "member" };
+    const result = await communityRepository.addMember(commIdValue, userData);
+    return result;
+  },
+  getAllMembers: async communityId => {
+    const { error: commIdError } =
       communityIdSchema.validate(communityId);
     if (commIdError) {
       const e = new Error();
@@ -227,6 +290,18 @@ const communityService = {
       throw e;
     }
 
+    const isOwner = await communityRepository.checkUserStatus(
+      userIdValue,
+      commIdValue,
+      "owner"
+    );
+
+    if (isOwner) {
+      const e = new Error("No se puede eliminar al dueño de la comunidad");
+      e.status = 400;
+      throw e;
+    }
+
     const result = await communityRepository.removeMember(
       commIdValue,
       userIdValue
@@ -243,7 +318,7 @@ const communityService = {
     return resut;
   },
   getAllDecks: async communityId => {
-    const { error: commIdError, value: commIdValue } =
+    const { error: commIdError } =
       communityIdSchema.validate(communityId);
     if (commIdError) {
       const e = new Error();
@@ -281,7 +356,7 @@ const communityService = {
     return result;
   },
   deleteDeck: async (communityId, deckId) => {
-    const { error: commIdError, value: commIdValue } =
+    const { error: commIdError } =
       communityIdSchema.validate(communityId);
     if (commIdError) {
       const e = new Error();
@@ -292,13 +367,14 @@ const communityService = {
     const result = await communityRepository.deleteDeck(communityId, deckId);
     return result;
   },
-  rateCommunity: async (communityId, userId, raiting) => {
+  rateDeck: async (communityId, deckId, userId, raiting) => {
+    const ratingSchema = Joi.number().integer().min(1).max(5).required();
     const { error: ratingError, value: ratingValue } =
       ratingSchema.validate(raiting);
     if (ratingError) {
       const e = new Error();
       e.status = 400;
-      e.message = commIdError.details[0].message;
+      e.message = ratingError.details[0].message;
       throw e;
     }
 
@@ -309,6 +385,13 @@ const communityService = {
       e.status = 400;
       e.message = commIdError.details[0].message;
       throw e;
+    }
+
+    
+    if (!deckId || typeof deckId !== "string") {
+        const e = new Error("ID de mazo inválido");
+        e.status = 400;
+        throw e;
     }
 
     const { error: userIdError, value: userIdValue } =
@@ -320,14 +403,35 @@ const communityService = {
       throw e;
     }
 
-    const result = communityRepository.rateCommunity(
+    const result = communityRepository.rateDeck(
       commIdValue,
+      deckId,
       userIdValue,
       ratingValue
     );
     return result;
   },
-  getCommunityRating: async communityId => {
+  getDeckRating: async (communityId, deckId) => {
+    const { error: commIdError, value: commIdValue } =
+      communityIdSchema.validate(communityId);
+    if (commIdError) {
+      const e = new Error();
+      e.status = 400;
+      e.message = commIdError.details[0].message;
+      throw e;
+    }
+    
+    if (!deckId || typeof deckId !== "string") {
+        const e = new Error("ID de mazo inválido");
+        e.status = 400;
+        throw e;
+    }
+
+    const result = await communityRepository.getDeckRating(commIdValue, deckId);
+    return result;
+  },
+
+  updateMemberRole: async (communityId, targetUserId, newRole, requestUserId) => {
     const { error: commIdError, value: commIdValue } =
       communityIdSchema.validate(communityId);
     if (commIdError) {
@@ -337,7 +441,41 @@ const communityService = {
       throw e;
     }
 
-    const result = await communityRepository.getCommunityRating(commIdValue);
+    const { error: userIdError, value: targetUserIdValue } =
+      userIdSchema.validate(targetUserId);
+    if (userIdError) {
+      const e = new Error();
+      e.status = 400;
+      e.message = userIdError.details[0].message;
+      throw e;
+    }
+
+    const { error: roleError, value: roleValue } =
+      updateUserStatuSchema.validate(newRole);
+    if (roleError) {
+      const e = new Error();
+      e.status = 400;
+      e.message = roleError.details[0].message;
+      throw e;
+    }
+
+    const isOwner = await communityRepository.checkUserStatus(
+      requestUserId,
+      commIdValue,
+      "owner"
+    );
+    if (!isOwner) {
+      const e = new Error("Solo el owner puede cambiar roles");
+      e.status = 403;
+      throw e;
+    }
+
+    const result = await communityRepository.updateMemberRole(
+      commIdValue,
+      targetUserIdValue,
+      roleValue
+    );
+    return result;
   },
 };
 
