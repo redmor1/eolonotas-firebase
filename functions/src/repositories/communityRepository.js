@@ -502,6 +502,22 @@ const communityRepository = {
 
     await userRef.update({ status: newRole });
 
+    // tambien actualizar el rol en el array members de la comunidad
+    const communityRef = db.collection("communities").doc(communityId);
+    const communityDoc = await communityRef.get();
+
+    if (communityDoc.exists) {
+      const members = communityDoc.data().members || [];
+      const updatedMembers = members.map(member => {
+        if (member.id === userId) {
+          return { ...member, role: newRole };
+        }
+        return member;
+      });
+
+      await communityRef.update({ members: updatedMembers });
+    }
+
     return { success: true, userId, newRole };
   },
 
@@ -510,7 +526,34 @@ const communityRepository = {
     const decksRef = communityRef.collection("decks");
     const snap = await decksRef.get();
 
-    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const decksWithUserNames = await Promise.all(
+      snap.docs.map(async doc => {
+        const deckData = doc.data();
+        let userDisplayName = "";
+
+        if (deckData.originalOwnerId) {
+          try {
+            const userDoc = await db
+              .collection("users")
+              .doc(deckData.originalOwnerId)
+              .get();
+            if (userDoc.exists) {
+              userDisplayName = userDoc.data().displayName || "";
+            }
+          } catch (error) {
+            console.error("Error obteniendo nombre de usuario:", error);
+          }
+        }
+
+        return {
+          id: doc.id,
+          ...deckData,
+          userDisplayName,
+        };
+      })
+    );
+
+    return decksWithUserNames;
   },
 };
 

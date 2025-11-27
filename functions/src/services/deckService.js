@@ -7,7 +7,6 @@ const createDeckSchema = Joi.object().keys({
   name: Joi.string().min(1).max(100).required(),
   description: Joi.string().max(500).optional().allow(""),
   userId: Joi.string().required(),
-  isPublic: Joi.boolean().optional().default(false),
   isFavorite: Joi.boolean().optional().default(false),
   cardCount: Joi.number().optional().default(0),
 });
@@ -15,7 +14,6 @@ const createDeckSchema = Joi.object().keys({
 const updateDeckSchema = Joi.object().keys({
   name: Joi.string().min(1).max(100).optional(),
   description: Joi.string().max(500).optional().allow(""),
-  isPublic: Joi.boolean().optional(),
   isFavorite: Joi.boolean().optional(),
 });
 
