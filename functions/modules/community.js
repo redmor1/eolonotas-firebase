@@ -16,8 +16,9 @@ app.use(validateFirebaseIdToken);
 
 app.post("/", async (req, res, next) => {
   try {
-    const communityData = req.body;
-    const { ownerId } = communityData;
+    const data = req.body;
+    const ownerId = req.user.uid;
+    const communityData = { ...data, ownerId: ownerId };
     await communityService.create(communityData, ownerId);
     res.status(201).json({ mensaje: "comunidad creada con éxito" });
   } catch (error) {
@@ -30,6 +31,43 @@ app.get("/", async (req, res, next) => {
     const userId = req.user.uid;
     const filter = req.query.filter;
     const result = await communityService.getWithFilter(userId, filter);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/:id", async (req, res, next) => {
+  try {
+    console.log("Estoy  en get");
+    const communityId = req.params.id;
+    const result = await communityService.getById(communityId);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put("/:id", async (req, res, next) => {
+  try {
+    const communityId = req.params.id;
+    console.log("estoy en put");
+    console.log(communityId);
+
+    const userId = req.user.uid;
+    const data = req.body;
+    const result = await communityService.update(communityId, userId, data);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/:id", async (req, res, next) => {
+  try {
+    const communityId = req.params.id;
+    const userId = req.user.uid;
+    const result = await communityService.delete(communityId, userId);
     res.status(200).json(result);
   } catch (error) {
     next(error);
