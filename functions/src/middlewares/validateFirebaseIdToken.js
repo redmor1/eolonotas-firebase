@@ -18,7 +18,7 @@ async function validateFirebaseIdToken(req, res, next) {
       process.env.FUNCTIONS_EMULATOR === "true" &&
       idToken === "emulator-token"
     ) {
-      req.user = { uid: "Qumjp5lKTJhHNvn2dyQGcnHK5o9H" };
+      req.user = { uid: "nxPOVwAd9fcVVmIMH3BhPawVOpgA" };
     } else {
       console.log("Verifying ID token:", idToken);
       const decodedIdToken = await admin.auth().verifyIdToken(idToken);
